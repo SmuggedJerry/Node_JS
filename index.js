@@ -1,47 +1,61 @@
-const yargs = require('yargs'); // подключаем модуль yargs
-const {addNote, printNotes, removeNote} = require('./notes.controller'); // подключаем контроллер с функциями для работы с заметками
+const chalk = require('chalk');
+const {addNote, getNotes, removeNote, editNotes} = require('./notes.controller');
+const express = require('express');
+const path = require('path');
 
-const packageVersion = require('./package.json'); // получаем версию из package.json
+const port = 3000;
 
-yargs.version(packageVersion.version); // устанавливаем версию для приложения
+const app = express();
 
-yargs.command({ // создаёт новую команду
-    command: 'add', // название команды
-    describe: 'Add new note to a list', // описание команды
-    builder: { // объект с опциями команды
-        title: { // название опции
-            type: 'string', // тип опции
-            describe: 'Note title', // описание опции
-            demandOption: true, // обязательна ли опция
-        },
-    },
-    handler({title}) { // title работает как аргумент функции, мы можем его получить потому что в builder мы указали title
-        addNote(title); // вызываем функцию из контроллера
-    }
-})
-// для вызова команды нам нужно в консоли написать node index.js add --title="My title"
+app.set('view engine', 'ejs');
 
-yargs.command({
-    command: 'list',
-    describe: 'Print all notes',
-    async handler() {
-       printNotes();
-    }
+app.set('views', 'pages');
+
+app.use(express.json());
+
+app.use(express.static(path.resolve(__dirname, 'public')))
+app.use(express.urlencoded({extended: true}));
+
+app.get('/', async (req, res) => { // создаем маршрут для главной страницы
+    res.render('index', { // рендерим страницу index.ejs
+        title: 'Express App', // передаем в нее параметр title со значением Express App
+        notes: await getNotes(),
+        created: false
+    })
 })
 
-yargs.command({
-    command: 'remove',
-    describe: 'Remove note by id',
-    builder: {
-        id: {
-            type: 'string',
-            describe: 'Note id',
-            demandOption: true,
-        },
-    },
-    async handler({id}) {
-        removeNote(id);
-    }
+app.post('/', async (req, res) => { // создаем маршрут для главной страницы
+    await addNote(req.body.title); // рендерим страницу index.ejs
+    res.render('index', { // передаем в нее параметр title со значением Express App
+        title: 'Express App',
+        notes: await getNotes(),
+        created: true
+    })
 })
 
-yargs.parse(); // запускает парсинг аргументов командной строки, без него ничего не будет работать
+app.delete('/:id', async (req, res) => {
+    await removeNote(req.params.id)
+        res.render('index', {
+        title: 'Express App',
+        notes: await getNotes(),
+        created: false
+    })
+})
+
+app.put('/:id/edit', async (req, res) => { // создаем маршрут для редактирования заметки
+    const { id } = req.params; // получаем id заметки из адреса
+    const newTitle = req.body.title; // получаем новое название заметки из тела запроса
+    await editNotes(id, newTitle); // вызываем функцию для редактирования заметки
+    res.render('index', { // рендерим страницу index.ejs
+      title: 'Express App', 
+      notes: await getNotes(), 
+      created: false,
+      edited: false,
+    });
+  });
+
+app.listen(port, () => {
+    console.log(chalk.green(`Server has been started on port ${port}`))
+})
+
+
